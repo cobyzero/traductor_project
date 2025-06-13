@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>ASL RGB Live Recognition</title>
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+    rel="stylesheet">
+  <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+</head>
+<body>
+  <div class="container mt-4">
+    <div class="row">
+      <div class="col-md-8 text-center">
+        <h3>Reconocimiento de Señas ASL (RGB)</h3>
+        <div class="video-box">
+          <img src="{{ url_for('video') }}" class="img-fluid">
+        </div>
+      </div>
+      <div class="col-md-4">
+        <h4>Historial (últimas 30 letras)</h4>
+        <div class="history-box">{{ history }}</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
