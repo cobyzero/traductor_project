@@ -1,7 +1,0 @@
-flask
-numpy
-opencv-python
-mediapipe
-tensorflow
-sklearn
-pandas

@@ -47,3 +47,4 @@ app.*.map.json
 # FVM Version Cache
 .fvm/
 /traductor_app/ios/build
+traductor_api/Bounding_Model.h5

@@ -1,30 +1,84 @@
-from flask import Flask, request, jsonify
+import cv2
 import numpy as np
 import tensorflow as tf
-from PIL import Image
-from io import BytesIO
+from flask import Flask, render_template, Response
+import mediapipe as mp
 
 app = Flask(__name__)
-model = tf.keras.models.load_model('sign_model.h5')
-class_names = [l for l in "ABCDEFGHIKLMNOPQRSTUVWX" ]  # sin J ni Z
 
-@app.route('/predict', methods=['POST'])
-def predict():
-    if 'image' not in request.files:
-        return jsonify({'error': 'No image provided'}), 400
+# Cargar el modelo Hyper (CNN+LSTM)
+model = tf.keras.models.load_model('Bounding_Model.h5')
+labels = ['hello', 'thanks', 'yes', 'no', 'iloveyou']  # Actualiza con tus clases
 
-    file = request.files['image']
-    img = Image.open(BytesIO(file.read())).convert('L')  # Escala de grises
-    img = img.resize((28, 28))
-    img_array = np.array(img).reshape(1, 28, 28, 1) / 255.0
+# MediaPipe manos
+mp_hands = mp.solutions.hands
+hands = mp_hands.Hands(max_num_hands=1)
+mp_drawing = mp.solutions.drawing_utils
 
-    pred = model.predict(img_array)
-    letter = class_names[np.argmax(pred)]
-    return jsonify({'letter': letter})
+# Secuencia de landmarks para LSTM
+sequence = []
 
-@app.route('/', methods=['GET'])
-def home():
-    return "Servidor Flask listo con Cloudflare Tunnel!"
+def gen():
+    global sequence
+    cap = cv2.VideoCapture(0)
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        # Detectar landmarks
+        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = hands.process(img_rgb)
+
+        hand_img = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        hand_img = cv2.resize(hand_img, (250, 250))
+        hand_img = hand_img.reshape(1, 250, 250, 1) / 255.0
+
+        prediction_text = "..."
+
+        if results.multi_hand_landmarks:
+            landmarks = results.multi_hand_landmarks[0]
+            coords = np.array([[lm.x, lm.y, lm.z] for lm in landmarks.landmark])
+            sequence.append(coords)
+
+            # Dibujar la mano
+            mp_drawing.draw_landmarks(frame, landmarks, mp_hands.HAND_CONNECTIONS)
+
+            if len(sequence) == 30:
+                input_seq = np.expand_dims(sequence, axis=0)  # (1, 30, 21, 3)
+                sequence = []
+
+                # Concatenar CNN + LSTM outputs
+                cnn_out = model.get_layer('cnn_output')(hand_img)
+                lstm_out = model.get_layer('lstm_output')(input_seq)
+                combined = tf.concat([cnn_out, lstm_out], axis=1)
+
+                pred = model.predict(combined)
+                prediction_text = labels[np.argmax(pred)]
+
+        # Mostrar texto en pantalla
+        cv2.putText(frame, prediction_text, (10, 40),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+        # Convertir a JPEG para el navegador
+        _, buffer = cv2.imencode('.jpg', frame)
+        frame = buffer.tobytes()
+
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+
+@app.route('/video')
+def video():
+    return Response(gen(),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
+
 
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=True)
