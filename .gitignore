@@ -48,3 +48,5 @@ app.*.map.json
 .fvm/
 /traductor_app/ios/build
 traductor_api/Bounding_Model.h5
+/traductor_api/asl_alphabet_test
+/traductor_api/asl_alphabet_train
